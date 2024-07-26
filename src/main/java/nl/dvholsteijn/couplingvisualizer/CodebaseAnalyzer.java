@@ -84,6 +84,11 @@ public class CodebaseAnalyzer {
 
 		StringBuilder svgContent = new StringBuilder();
 		svgContent.append("<svg width=\"1000\" height=\"1000\" xmlns=\"http://www.w3.org/2000/svg\">\n");
+		svgContent.append("<defs>\n");
+		svgContent.append("<marker id=\"triangle\" viewBox=\"0 0 10 10\" refX=\"0\" refY=\"5\" markerWidth=\"6\" markerHeight=\"6\" orient=\"auto\">\n");
+		svgContent.append("<path d=\"M 0 0 L 10 5 L 0 10 z\" fill=\"black\" />\n");
+		svgContent.append("</marker>\n");
+		svgContent.append("</defs>\n");
 
 		Map<String, Point2D> positions = new HashMap<>();
 		int i = 0;
@@ -93,12 +98,7 @@ public class CodebaseAnalyzer {
 			int y = (int) (centerY + radius * Math.sin(angle));
 			positions.put(vertex, new Point2D(x, y));
 
-			// Append circle element for the vertex
-			svgContent.append(String.format("<circle cx=\"%d\" cy=\"%d\" r=\"10\" fill=\"black\">\n", x, y));
-			// Append title element for the tooltip
-			svgContent.append(String.format("<title>%s</title>\n", vertex));
-			// Close circle element
-			svgContent.append("</circle>\n");
+			renderVertex(vertex, svgContent, x, y);
 			i++;
 		}
 
@@ -108,10 +108,7 @@ public class CodebaseAnalyzer {
 			Point2D sourcePosition = positions.get(sourceVertex);
 			Point2D targetPosition = positions.get(targetVertex);
 
-			svgContent.append(String.format("<line x1=\"%d\" y1=\"%d\" x2=\"%d\" y2=\"%d\" stroke=\"black\">\n",
-					(int) sourcePosition.getX(), (int) sourcePosition.getY(), (int) targetPosition.getX(), (int) targetPosition.getY()));
-			svgContent.append(String.format("<title>%s -> %s</title>\n", sourceVertex, targetVertex)); // Tooltip for edge
-			svgContent.append("</line>\n");
+			renderEdge(svgContent, sourcePosition, targetPosition, sourceVertex, targetVertex);
 		}
 
 		svgContent.append("</svg>");
@@ -122,6 +119,22 @@ public class CodebaseAnalyzer {
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
+	}
+
+	private static void renderEdge(StringBuilder svgContent, Point2D sourcePosition, Point2D targetPosition, String sourceVertex, String targetVertex) {
+		svgContent.append(String.format("<line x1=\"%d\" y1=\"%d\" x2=\"%d\" y2=\"%d\" marker-end=\"url(#triangle)\" stroke=\"black\">\n",
+				(int) sourcePosition.getX(), (int) sourcePosition.getY(), (int) targetPosition.getX(), (int) targetPosition.getY()));
+		svgContent.append(String.format("<title>%s -> %s</title>\n", sourceVertex, targetVertex)); // Tooltip for edge
+		svgContent.append("</line>\n");
+	}
+
+	private static void renderVertex(String vertex, StringBuilder svgContent, int x, int y) {
+		// Append circle element for the vertex with a solid border and transparent background
+		svgContent.append(String.format("<circle cx=\"%d\" cy=\"%d\" r=\"10\" stroke=\"black\" fill=\"transparent\">\n", x, y));
+		// Append title element for the tooltip
+		svgContent.append(String.format("<title>%s</title>\n", vertex));
+		// Close circle element
+		svgContent.append("</circle>\n");
 	}
 
 	private void analyzeCodebase(String codebasePath) throws IOException {

@@ -31,6 +31,7 @@ import java.io.Writer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -38,14 +39,29 @@ import java.util.Map;
 
 public class CodebaseAnalyzer {
 
+	private final Path exportTargetPath;
+
+	private List<String> excludedPackages;
+
 	// Store dependencies as a graph
-	private Graph<String, DefaultEdge> graph = new DirectedMultigraph<>(SupplierUtil.createStringSupplier(), SupplierUtil.createDefaultEdgeSupplier(), false);
+	private final Graph<String, DefaultEdge> graph = new DirectedMultigraph<>(SupplierUtil.createStringSupplier(), SupplierUtil.createDefaultEdgeSupplier(), false);
+
+	public CodebaseAnalyzer(Path exportTargetPath, List<String> excludedPackages) {
+		this.exportTargetPath = exportTargetPath;
+		this.excludedPackages = excludedPackages;
+	}
 
 	public static void main(String[] args) throws IOException {
-		// Set the path to your codebase
-		String codebasePath = "/home/dennis/projects/branche-rie/backend/src/main/java";
+		if (args.length < 3) {
+			System.out.println("Usage: java CodebaseAnalyzer <codebasePath> <exportTargetPath> <excludedPackages>");
+			System.exit(1);
+		}
 
-		var codebaseAnalyzer = new CodebaseAnalyzer();
+		String codebasePath = args[0];
+		Path exportTargetPath = Paths.get(args[1]);
+		List<String> excludedPackages = Arrays.asList(args[2].split(","));
+
+		var codebaseAnalyzer = new CodebaseAnalyzer(exportTargetPath, excludedPackages);
 
 		codebaseAnalyzer.initializeJavaParser();
 		codebaseAnalyzer.analyzeCodebase(codebasePath);
@@ -54,13 +70,13 @@ public class CodebaseAnalyzer {
 		codebaseAnalyzer.exportGraphToDOT();
 
 		// Visualize the coupling
-//		visualizeCoupling();
+		// visualizeCoupling();
 		codebaseAnalyzer.exportGraphToSVG();
-
 	}
-
 	public void exportGraphToSVG() {
-		String outputPath = "graph_circular_layout.svg";
+		String timestamp = String.valueOf(System.currentTimeMillis());
+		Path outputPath = exportTargetPath.resolve("graph_circular_layout_" + timestamp + ".svg");
+
 		int centerX = 500;
 		int centerY = 500;
 		int radius = 400;
@@ -100,7 +116,8 @@ public class CodebaseAnalyzer {
 
 		svgContent.append("</svg>");
 
-		try (FileWriter writer = new FileWriter(outputPath)) {
+		try (FileWriter writer = new FileWriter(outputPath.toFile())) {
+			System.out.println("Writing svg export to: " + outputPath);
 			writer.write(svgContent.toString());
 		} catch (IOException e) {
 			e.printStackTrace();
@@ -155,11 +172,15 @@ public class CodebaseAnalyzer {
 				Name importName = imp.getName();
 				String importedPackage = importName.getQualifier().map(Name::toString).orElse("default");
 
-				// Add the imported package as a node
-				graph.addVertex(importedPackage);
+				// Skip importedPackage that are excluded
+				if (excludedPackages.stream().noneMatch(excludedPackage -> importedPackage.startsWith(excludedPackage))) {
 
-				// Add an edge from the current package to the imported package
-				graph.addEdge(packageName, importedPackage);
+					// Add the imported package as a node
+					graph.addVertex(importedPackage);
+
+					// Add an edge from the current package to the imported package
+					graph.addEdge(packageName, importedPackage);
+				}
 			}
 
 		} catch (Exception e) {

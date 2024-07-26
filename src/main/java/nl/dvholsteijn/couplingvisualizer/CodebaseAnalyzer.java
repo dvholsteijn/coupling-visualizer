@@ -39,9 +39,27 @@ import java.util.Map;
 public class CodebaseAnalyzer {
 
 	// Store dependencies as a graph
-	private static Graph<String, DefaultEdge> graph = new DirectedMultigraph<>(SupplierUtil.createStringSupplier(), SupplierUtil.createDefaultEdgeSupplier(), false);
+	private Graph<String, DefaultEdge> graph = new DirectedMultigraph<>(SupplierUtil.createStringSupplier(), SupplierUtil.createDefaultEdgeSupplier(), false);
 
-	public static void exportGraphToSVG() {
+	public static void main(String[] args) throws IOException {
+		// Set the path to your codebase
+		String codebasePath = "/home/dennis/projects/branche-rie/backend/src/main/java";
+
+		var codebaseAnalyzer = new CodebaseAnalyzer();
+
+		codebaseAnalyzer.initializeJavaParser();
+		codebaseAnalyzer.analyzeCodebase(codebasePath);
+
+		// text render graph
+		codebaseAnalyzer.exportGraphToDOT();
+
+		// Visualize the coupling
+//		visualizeCoupling();
+		codebaseAnalyzer.exportGraphToSVG();
+
+	}
+
+	public void exportGraphToSVG() {
 		String outputPath = "graph_circular_layout.svg";
 		int centerX = 500;
 		int centerY = 500;
@@ -89,34 +107,15 @@ public class CodebaseAnalyzer {
 		}
 	}
 
-	public static void main(String[] args) throws IOException {
-		// Set the path to your codebase
-		String codebasePath = "/home/dennis/projects/branche-rie/backend/src/main/java";
-
-		//
-		initializeJavaParser();
-
-		// Analyze the codebase
-		analyzeCodebase(codebasePath);
-
-		// text render graph
-		exportGraphToDOT(graph);
-
-		// Visualize the coupling
-//		visualizeCoupling();
-		exportGraphToSVG();
-
-	}
-
-	private static void analyzeCodebase(String codebasePath) throws IOException {
+	private void analyzeCodebase(String codebasePath) throws IOException {
 		// Traverse the codebase directory and process each Java file
 		Files.walk(Paths.get(codebasePath))
 				.filter(Files::isRegularFile)
 				.filter(path -> path.toString().endsWith(".java"))
-				.forEach(CodebaseAnalyzer::processJavaFile);
+				.forEach(this::processJavaFile);
 	}
 
-	private static void exportGraphToDOT(Graph<String, DefaultEdge> graph) {
+	private void exportGraphToDOT() {
 
 		DOTExporter<String, DefaultEdge> exporter =
 				new DOTExporter<>(v -> v.replace('.', '_'));
@@ -130,7 +129,7 @@ public class CodebaseAnalyzer {
 		System.out.println(writer.toString());
 	}
 
-	private static void initializeJavaParser() {
+	private void initializeJavaParser() {
 
 		ParserConfiguration configuration = new ParserConfiguration();
 
@@ -139,7 +138,7 @@ public class CodebaseAnalyzer {
 		StaticJavaParser.setConfiguration(configuration);
 	}
 
-	private static void processJavaFile(Path javaFilePath) {
+	private void processJavaFile(Path javaFilePath) {
 		try {
 			// Parse the Java file
 			CompilationUnit cu = StaticJavaParser.parse(new FileReader(javaFilePath.toFile()));
@@ -168,7 +167,7 @@ public class CodebaseAnalyzer {
 		}
 	}
 
-	private static void visualizeCoupling() {
+	private void visualizeCoupling() {
 		// Use JGraphT's circle layout to arrange nodes in a circular layout
 		CircularLayoutAlgorithm2D<String, DefaultEdge> layoutAlgorithm = new CircularLayoutAlgorithm2D<>();
 		Box2D box = new Box2D(0, 0, 10, 10); // Example dimensions

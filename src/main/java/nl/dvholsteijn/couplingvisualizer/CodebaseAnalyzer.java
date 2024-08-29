@@ -41,10 +41,10 @@ public class CodebaseAnalyzer {
 
 	private final Path exportTargetPath;
 
-	private List<String> excludedPackages;
-
 	// Store dependencies as a graph
 	private final Graph<String, DefaultEdge> graph = new DirectedMultigraph<>(SupplierUtil.createStringSupplier(), SupplierUtil.createDefaultEdgeSupplier(), false);
+
+	private List<String> excludedPackages;
 
 	public CodebaseAnalyzer(Path exportTargetPath, List<String> excludedPackages) {
 		this.exportTargetPath = exportTargetPath;
@@ -73,6 +73,47 @@ public class CodebaseAnalyzer {
 		// visualizeCoupling();
 		codebaseAnalyzer.exportGraphToSVG();
 	}
+
+	private static void renderEdge(StringBuilder svgContent, Point2D sourcePosition, Point2D targetPosition, String sourceVertex, String targetVertex) {
+		svgContent.append(String.format("<line x1=\"%d\" y1=\"%d\" x2=\"%d\" y2=\"%d\" marker-end=\"url(#triangle)\" stroke=\"black\">\n",
+				(int) sourcePosition.getX(), (int) sourcePosition.getY(), (int) targetPosition.getX(), (int) targetPosition.getY()));
+		svgContent.append(String.format("<title>%s -> %s</title>\n", sourceVertex, targetVertex)); // Tooltip for edge
+		svgContent.append("</line>\n");
+	}
+
+	private static void renderVertex(String vertex, StringBuilder svgContent, int x, int y) {
+		// Append circle element for the vertex with a solid border and transparent background
+		svgContent.append(String.format("<circle cx=\"%d\" cy=\"%d\" r=\"10\" stroke=\"black\" fill=\"transparent\">\n", x, y));
+		// Append title element for the tooltip
+		svgContent.append(String.format("<title>%s</title>\n", vertex));
+		// Close circle element
+		svgContent.append("</circle>\n");
+	}
+
+	private static String resolveTargetPackage(ImportDeclaration imp) {
+		Name importName = imp.getName();
+		String importedPackage = importName.getQualifier().map(Name::toString).orElse("default");
+
+		// Check if the import is a static import
+		if (imp.isStatic()) {
+			// Extract the package part from the static import assuming the package part is all lowercase
+			String[] parts = importedPackage.split("\\.");
+			StringBuilder packagePart = new StringBuilder();
+			for (String part : parts) {
+				if (Character.isLowerCase(part.charAt(0))) {
+					if (packagePart.length() > 0) {
+						packagePart.append(".");
+					}
+					packagePart.append(part);
+				} else {
+					break;
+				}
+			}
+			importedPackage = packagePart.toString();
+		}
+		return importedPackage;
+	}
+
 	public void exportGraphToSVG() {
 		String timestamp = String.valueOf(System.currentTimeMillis());
 		Path outputPath = exportTargetPath.resolve("graph_circular_layout_" + timestamp + ".svg");
@@ -121,22 +162,6 @@ public class CodebaseAnalyzer {
 		}
 	}
 
-	private static void renderEdge(StringBuilder svgContent, Point2D sourcePosition, Point2D targetPosition, String sourceVertex, String targetVertex) {
-		svgContent.append(String.format("<line x1=\"%d\" y1=\"%d\" x2=\"%d\" y2=\"%d\" marker-end=\"url(#triangle)\" stroke=\"black\">\n",
-				(int) sourcePosition.getX(), (int) sourcePosition.getY(), (int) targetPosition.getX(), (int) targetPosition.getY()));
-		svgContent.append(String.format("<title>%s -> %s</title>\n", sourceVertex, targetVertex)); // Tooltip for edge
-		svgContent.append("</line>\n");
-	}
-
-	private static void renderVertex(String vertex, StringBuilder svgContent, int x, int y) {
-		// Append circle element for the vertex with a solid border and transparent background
-		svgContent.append(String.format("<circle cx=\"%d\" cy=\"%d\" r=\"10\" stroke=\"black\" fill=\"transparent\">\n", x, y));
-		// Append title element for the tooltip
-		svgContent.append(String.format("<title>%s</title>\n", vertex));
-		// Close circle element
-		svgContent.append("</circle>\n");
-	}
-
 	private void analyzeCodebase(String codebasePath) throws IOException {
 		// Traverse the codebase directory and process each Java file
 		Files.walk(Paths.get(codebasePath))
@@ -182,13 +207,13 @@ public class CodebaseAnalyzer {
 			// Process import statements to determine efferent coupling
 			List<ImportDeclaration> imports = cu.findAll(ImportDeclaration.class);
 			for (ImportDeclaration imp : imports) {
-				Name importName = imp.getName();
-				String importedPackage = importName.getQualifier().map(Name::toString).orElse("default");
+				final String importedPackage = resolveTargetPackage(imp);
 
 				// Skip importedPackage that are excluded
 				if (excludedPackages.stream().noneMatch(excludedPackage -> importedPackage.startsWith(excludedPackage))) {
 
-					// Add the imported package as a node
+					// the imported package is added as a node if not already present
+					System.out.println("Adding edge from " + packageName + " to " + importedPackage);
 					graph.addVertex(importedPackage);
 
 					// Add an edge from the current package to the imported package

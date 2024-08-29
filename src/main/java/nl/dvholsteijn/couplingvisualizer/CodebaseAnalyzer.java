@@ -75,18 +75,15 @@ public class CodebaseAnalyzer {
 	}
 
 	private static void renderEdge(StringBuilder svgContent, Point2D sourcePosition, Point2D targetPosition, String sourceVertex, String targetVertex) {
-		svgContent.append(String.format("<line x1=\"%d\" y1=\"%d\" x2=\"%d\" y2=\"%d\" marker-end=\"url(#triangle)\" stroke=\"black\">\n",
-				(int) sourcePosition.getX(), (int) sourcePosition.getY(), (int) targetPosition.getX(), (int) targetPosition.getY()));
-		svgContent.append(String.format("<title>%s -> %s</title>\n", sourceVertex, targetVertex)); // Tooltip for edge
+		svgContent.append(String.format("<line x1=\"%d\" y1=\"%d\" x2=\"%d\" y2=\"%d\" marker-end=\"url(#triangle)\" stroke=\"black\" opacity=\"0.25\" data-target=\"%s\">\n",
+				(int) sourcePosition.getX(), (int) sourcePosition.getY(), (int) targetPosition.getX(), (int) targetPosition.getY(), targetVertex));
+		svgContent.append(String.format("<title>%s -> %s</title>\n", sourceVertex, targetVertex));
 		svgContent.append("</line>\n");
 	}
 
 	private static void renderVertex(String vertex, StringBuilder svgContent, int x, int y) {
-		// Append circle element for the vertex with a solid border and transparent background
-		svgContent.append(String.format("<circle cx=\"%d\" cy=\"%d\" r=\"10\" stroke=\"black\" fill=\"transparent\">\n", x, y));
-		// Append title element for the tooltip
+		svgContent.append(String.format("<circle id=\"%s\" cx=\"%d\" cy=\"%d\" r=\"10\" stroke=\"black\" fill=\"transparent\" opacity=\"0.5\" onclick=\"changeColor(evt)\">\n", vertex, x, y));
 		svgContent.append(String.format("<title>%s</title>\n", vertex));
-		// Close circle element
 		svgContent.append("</circle>\n");
 	}
 
@@ -130,6 +127,26 @@ public class CodebaseAnalyzer {
 		svgContent.append("<path d=\"M 0 0 L 10 5 L 0 10 z\" fill=\"black\" />\n");
 		svgContent.append("</marker>\n");
 		svgContent.append("</defs>\n");
+		svgContent.append("<script type=\"text/ecmascript\">\n");
+		svgContent.append("<![CDATA[\n");
+		svgContent.append("function changeColor(evt) {\n");
+		svgContent.append("  var elements = document.getElementsByTagName('circle');\n");
+		svgContent.append("  for (var i = 0; i < elements.length; i++) {\n");
+		svgContent.append("    elements[i].setAttribute('fill', 'transparent');\n");
+		svgContent.append("  }\n");
+		svgContent.append("  var element = evt.target;\n");
+		svgContent.append("  element.setAttribute('fill', 'red');\n");
+		svgContent.append("  var edges = document.getElementsByTagName('line');\n");
+		svgContent.append("  for (var i = 0; i < edges.length; i++) {\n");
+		svgContent.append("    if (edges[i].getAttribute('data-target') === element.id) {\n");
+		svgContent.append("      edges[i].setAttribute('stroke', 'red');\n");
+		svgContent.append("    } else {\n");
+		svgContent.append("      edges[i].setAttribute('stroke', 'black');\n");
+		svgContent.append("    }\n");
+		svgContent.append("  }\n");
+		svgContent.append("}\n");
+		svgContent.append("]]>\n");
+		svgContent.append("</script>\n");
 
 		Map<String, Point2D> positions = new HashMap<>();
 		int i = 0;

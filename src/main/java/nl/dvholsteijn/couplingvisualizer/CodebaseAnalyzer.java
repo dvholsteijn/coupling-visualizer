@@ -33,11 +33,15 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public class CodebaseAnalyzer {
+
+	public static final int MAX_THICKNESS = 6;
 
 	private final Path exportTargetPath;
 
@@ -74,9 +78,9 @@ public class CodebaseAnalyzer {
 		codebaseAnalyzer.exportGraphToSVG();
 	}
 
-	private static void renderEdge(StringBuilder svgContent, Point2D sourcePosition, Point2D targetPosition, String sourceVertex, String targetVertex) {
-		svgContent.append(String.format("<line x1=\"%d\" y1=\"%d\" x2=\"%d\" y2=\"%d\" marker-end=\"url(#triangle)\" stroke=\"black\" opacity=\"0.25\" data-target=\"%s\">\n",
-				(int) sourcePosition.getX(), (int) sourcePosition.getY(), (int) targetPosition.getX(), (int) targetPosition.getY(), targetVertex));
+	private static void renderEdge(StringBuilder svgContent, Point2D sourcePosition, Point2D targetPosition, String sourceVertex, String targetVertex, int thickness) {
+		svgContent.append(String.format("<line x1=\"%d\" y1=\"%d\" x2=\"%d\" y2=\"%d\" stroke=\"black\" opacity=\"0.25\" stroke-width=\"%d\" data-target=\"%s\">\n",
+				(int) sourcePosition.getX(), (int) sourcePosition.getY(), (int) targetPosition.getX(), (int) targetPosition.getY(), thickness, targetVertex));
 		svgContent.append(String.format("<title>%s -> %s</title>\n", sourceVertex, targetVertex));
 		svgContent.append("</line>\n");
 	}
@@ -122,11 +126,6 @@ public class CodebaseAnalyzer {
 
 		StringBuilder svgContent = new StringBuilder();
 		svgContent.append("<svg width=\"1000\" height=\"1000\" xmlns=\"http://www.w3.org/2000/svg\">\n");
-		svgContent.append("<defs>\n");
-		svgContent.append("<marker id=\"triangle\" viewBox=\"0 0 10 10\" refX=\"0\" refY=\"5\" markerWidth=\"6\" markerHeight=\"6\" orient=\"auto\">\n");
-		svgContent.append("<path d=\"M 0 0 L 10 5 L 0 10 z\" fill=\"black\" />\n");
-		svgContent.append("</marker>\n");
-		svgContent.append("</defs>\n");
 		svgContent.append("<script type=\"text/ecmascript\">\n");
 		svgContent.append("<![CDATA[\n");
 		svgContent.append("function changeColor(evt) {\n");
@@ -140,8 +139,10 @@ public class CodebaseAnalyzer {
 		svgContent.append("  for (var i = 0; i < edges.length; i++) {\n");
 		svgContent.append("    if (edges[i].getAttribute('data-target') === element.id) {\n");
 		svgContent.append("      edges[i].setAttribute('stroke', 'red');\n");
+		svgContent.append("      edges[i].setAttribute('opacity', '1');\n");
 		svgContent.append("    } else {\n");
 		svgContent.append("      edges[i].setAttribute('stroke', 'black');\n");
+		svgContent.append("      edges[i].setAttribute('opacity', '0.25');\n");
 		svgContent.append("    }\n");
 		svgContent.append("  }\n");
 		svgContent.append("}\n");
@@ -160,13 +161,22 @@ public class CodebaseAnalyzer {
 			i++;
 		}
 
+		Set<String> renderedEdges = new HashSet<>();
 		for (DefaultEdge edge : graph.edgeSet()) {
 			String sourceVertex = graph.getEdgeSource(edge);
 			String targetVertex = graph.getEdgeTarget(edge);
-			Point2D sourcePosition = positions.get(sourceVertex);
-			Point2D targetPosition = positions.get(targetVertex);
+			String edgeKey = sourceVertex + "->" + targetVertex;
 
-			renderEdge(svgContent, sourcePosition, targetPosition, sourceVertex, targetVertex);
+			if (!renderedEdges.contains(edgeKey)) {
+				Point2D sourcePosition = positions.get(sourceVertex);
+				Point2D targetPosition = positions.get(targetVertex);
+
+				// Calculate the thickness based on the multiplicity of edges
+				int thickness = graph.getAllEdges(sourceVertex, targetVertex).size();
+
+				renderEdge(svgContent, sourcePosition, targetPosition, sourceVertex, targetVertex, thickness > MAX_THICKNESS ? MAX_THICKNESS : thickness);
+				renderedEdges.add(edgeKey);
+			}
 		}
 
 		svgContent.append("</svg>");

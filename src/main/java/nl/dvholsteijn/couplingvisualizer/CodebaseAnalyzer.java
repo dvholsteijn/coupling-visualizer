@@ -236,8 +236,12 @@ public class CodebaseAnalyzer {
 					System.out.println("Adding edge from " + packageName + " to " + importedPackage);
 					graph.addVertex(importedPackage);
 
-					// Add an edge from the current package to the imported package
-					graph.addEdge(packageName, importedPackage);
+					try {
+						// Add an edge from the current package to the imported package
+						graph.addEdge(packageName, importedPackage);
+					} catch (IllegalArgumentException e) {
+						System.out.println("Loop detected! Skipping edge from " + packageName + " to " + importedPackage);
+					}
 				}
 			}
 

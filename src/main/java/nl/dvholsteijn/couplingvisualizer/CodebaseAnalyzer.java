@@ -5,14 +5,7 @@ import com.github.javaparser.StaticJavaParser;
 import com.github.javaparser.ast.CompilationUnit;
 import com.github.javaparser.ast.ImportDeclaration;
 import com.github.javaparser.ast.expr.Name;
-import com.mxgraph.layout.mxCircleLayout;
-import com.mxgraph.swing.mxGraphComponent;
 import org.jgrapht.Graph;
-import org.jgrapht.alg.drawing.CircularLayoutAlgorithm2D;
-import org.jgrapht.alg.drawing.model.Box2D;
-import org.jgrapht.alg.drawing.model.LayoutModel2D;
-import org.jgrapht.alg.drawing.model.MapLayoutModel2D;
-import org.jgrapht.ext.JGraphXAdapter;
 import org.jgrapht.graph.DefaultEdge;
 import org.jgrapht.graph.DirectedMultigraph;
 import org.jgrapht.nio.Attribute;
@@ -20,9 +13,6 @@ import org.jgrapht.nio.DefaultAttribute;
 import org.jgrapht.nio.dot.DOTExporter;
 import org.jgrapht.util.SupplierUtil;
 
-import javax.swing.JFrame;
-import java.awt.Dimension;
-import java.awt.Toolkit;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
@@ -31,6 +21,7 @@ import java.io.Writer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.text.Normalizer;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -48,33 +39,33 @@ public class CodebaseAnalyzer {
 	// Store dependencies as a graph
 	private final Graph<String, DefaultEdge> graph = new DirectedMultigraph<>(SupplierUtil.createStringSupplier(), SupplierUtil.createDefaultEdgeSupplier(), false);
 
+	private final String svgTitle;
+
 	private List<String> excludedPackages;
 
-	public CodebaseAnalyzer(Path exportTargetPath, List<String> excludedPackages) {
+	public CodebaseAnalyzer(Path exportTargetPath, List<String> excludedPackages, String svgTitle) {
 		this.exportTargetPath = exportTargetPath;
 		this.excludedPackages = excludedPackages;
+		this.svgTitle = svgTitle;
 	}
 
 	public static void main(String[] args) throws IOException {
-		if (args.length < 3) {
-			System.out.println("Usage: java CodebaseAnalyzer <codebasePath> <exportTargetPath> <excludedPackages>");
+		if (args.length < 4) {
+			System.out.println("Usage: java CodebaseAnalyzer <codebasePath> <exportTargetPath> <excludedPackages> <svgTitle>");
 			System.exit(1);
 		}
 
 		String codebasePath = args[0];
 		Path exportTargetPath = Paths.get(args[1]);
 		List<String> excludedPackages = Arrays.asList(args[2].split(","));
+		String svgTitle = args[3];
 
-		var codebaseAnalyzer = new CodebaseAnalyzer(exportTargetPath, excludedPackages);
+		var codebaseAnalyzer = new CodebaseAnalyzer(exportTargetPath, excludedPackages, svgTitle);
 
 		codebaseAnalyzer.initializeJavaParser();
 		codebaseAnalyzer.analyzeCodebase(codebasePath);
 
-		// text render graph
 		codebaseAnalyzer.exportGraphToDOT();
-
-		// Visualize the coupling
-		// visualizeCoupling();
 		codebaseAnalyzer.exportGraphToSVG();
 	}
 
@@ -117,7 +108,8 @@ public class CodebaseAnalyzer {
 
 	public void exportGraphToSVG() {
 		String timestamp = String.valueOf(System.currentTimeMillis());
-		Path outputPath = exportTargetPath.resolve("graph_circular_layout_" + timestamp + ".svg");
+		String sanitizedTitle = sanitizeFilename(svgTitle);
+		Path outputPath = exportTargetPath.resolve("graph_circular_layout_" + sanitizedTitle + "_" + timestamp + ".svg");
 
 		int centerX = 500;
 		int centerY = 500;
@@ -126,6 +118,7 @@ public class CodebaseAnalyzer {
 
 		StringBuilder svgContent = new StringBuilder();
 		svgContent.append("<svg width=\"1000\" height=\"1000\" xmlns=\"http://www.w3.org/2000/svg\">\n");
+		renderTitle(svgContent);
 		svgContent.append("<script type=\"text/ecmascript\">\n");
 		svgContent.append("<![CDATA[\n");
 		svgContent.append("function changeColor(evt) {\n");
@@ -253,39 +246,15 @@ public class CodebaseAnalyzer {
 		}
 	}
 
-	private void visualizeCoupling() {
-		// Use JGraphT's circle layout to arrange nodes in a circular layout
-		CircularLayoutAlgorithm2D<String, DefaultEdge> layoutAlgorithm = new CircularLayoutAlgorithm2D<>();
-		Box2D box = new Box2D(0, 0, 10, 10); // Example dimensions
-		LayoutModel2D<String> layoutModel = new MapLayoutModel2D<>(box);
-		layoutAlgorithm.layout(graph, layoutModel);
+	private void renderTitle(StringBuilder svgContent) {
+		svgContent.append(String.format("<text x=\"50%%\" y=\"30\" text-anchor=\"middle\" font-size=\"24\" font-family=\"Arial\" fill=\"black\">%s</text>\n", svgTitle));
+	}
 
-		// Create a JGraphX adapter for visualization
-		JGraphXAdapter<String, DefaultEdge> graphAdapter = new JGraphXAdapter<>(graph);
-		mxCircleLayout layout = new mxCircleLayout(graphAdapter);
-		layout.execute(graphAdapter.getDefaultParent());
-
-		// Create a JFrame to display the graph
-		JFrame frame = new JFrame("Package Dependency Graph");
-		frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-
-		// Adjusting frame size to be smaller than the screen size
-		Dimension screenSize = Toolkit.getDefaultToolkit().getScreenSize();
-		int width = (int) (screenSize.width * 0.75); // 75% of screen width
-		int height = (int) (screenSize.height * 0.75); // 75% of screen height
-		frame.setSize(width, height);
-
-		// Ensure the mxGraphComponent fits within the frame
-		mxGraphComponent graphComponent = new mxGraphComponent(graphAdapter);
-		// Zoom out content
-		double scale = 1; // Zoom out to 75% of the original size
-		graphComponent.zoomTo(scale, true);
-		frame.getContentPane().add(graphComponent);
-
-		// Optionally, center the frame on the screen
-		frame.setLocationRelativeTo(null);
-		frame.setVisible(true);
-
+	private String sanitizeFilename(String input) {
+		String normalized = Normalizer.normalize(input, Normalizer.Form.NFD);
+		String sanitized = normalized.replaceAll("[^\\p{ASCII}]", "");
+		sanitized = sanitized.replaceAll("[^a-zA-Z0-9-_\\.]", "_");
+		return sanitized;
 	}
 
 	private static class Point2D {
